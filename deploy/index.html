@@ -1,0 +1,1781 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CPU Scheduling Co-Op — Class Tournament</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ==========================================================================
+   §0  TOKENS
+   ========================================================================== */
+:root{
+  --maroon-900:#4A0000; --maroon:#800000; --maroon-600:#A31515; --maroon-50:#FDF2F2;
+  --white:#FFFFFF; --ink:#1A0A0A; --muted:#F7F3F3; --border:#EADDDD;
+  --gold:#FFD700; --teal:#06B6D4; --purple:#A855F7; --green:#22C55E; --red:#DC2626;
+
+  /* Accent variants that are safe to put text on. The bright accents above are
+     used only as fills behind dark text, or as borders/glows. */
+  --teal-ink:#0E7490; --purple-ink:#7E22CE; --green-ink:#15803D; --orange-ink:#C2410C;
+
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --space-6:24px; --space-8:32px; --space-12:48px;
+
+  --r-md:12px; --r-lg:16px; --r-2xl:24px; --r-3xl:32px; --r-pill:999px;
+
+  --dur-fast:150ms; --dur:220ms; --dur-slow:320ms;
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+
+  --cell:44px;           /* timeline cell size, overridden per breakpoint */
+  --shadow-card:0 4px 0 var(--border), 0 12px 28px rgba(74,0,0,.10);
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Comic Neue','Segoe UI',system-ui,sans-serif;
+  font-size:16px; line-height:1.5; color:var(--ink);
+  background:var(--maroon-50);
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(255,215,0,.16), transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(168,85,247,.14), transparent 46%),
+    radial-gradient(circle at 70% 18%, rgba(6,182,212,.12), transparent 40%);
+  background-attachment:fixed;
+  min-height:100vh; min-height:100dvh;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+h1,h2,h3,h4,.font-display{font-family:'Baloo 2',cursive;font-weight:800;line-height:1.15}
+:focus-visible{outline:3px solid var(--purple-ink);outline-offset:3px;border-radius:6px}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:none}
+[hidden]{display:none !important}
+
+/* ==========================================================================
+   §1  TACTILE BUTTONS  (hard bottom shadow that collapses on press)
+   ========================================================================== */
+.btn{
+  --btn-bg:var(--maroon); --btn-fg:var(--white); --btn-edge:var(--maroon-900);
+  display:inline-flex; align-items:center; justify-content:center; gap:var(--space-2);
+  min-height:52px; padding:0 var(--space-6);
+  font-family:'Baloo 2',cursive; font-weight:800; font-size:1.05rem; letter-spacing:.2px;
+  color:var(--btn-fg); background:var(--btn-bg);
+  border-radius:var(--r-lg); border:none;
+  box-shadow:0 5px 0 var(--btn-edge);
+  transform:translateY(0);
+  transition:transform var(--dur-fast) var(--ease-spring),
+             box-shadow var(--dur-fast) var(--ease-spring),
+             filter var(--dur-fast) var(--ease-out);
+  -webkit-tap-highlight-color:transparent; touch-action:manipulation;
+}
+.btn:hover:not(:disabled){filter:brightness(1.08)}
+.btn:active:not(:disabled){transform:translateY(5px);box-shadow:0 0 0 var(--btn-edge)}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:0 5px 0 var(--btn-edge)}
+.btn--gold{--btn-bg:var(--gold);--btn-fg:var(--ink);--btn-edge:#B89B00}
+.btn--teal{--btn-bg:var(--teal-ink);--btn-fg:var(--white);--btn-edge:#0A566E}
+.btn--purple{--btn-bg:var(--purple-ink);--btn-fg:var(--white);--btn-edge:#5B1799}
+.btn--green{--btn-bg:var(--green-ink);--btn-fg:var(--white);--btn-edge:#0D5A2B}
+.btn--ghost{--btn-bg:var(--white);--btn-fg:var(--maroon);--btn-edge:var(--border)}
+.btn--sm{min-height:44px;font-size:.95rem;padding:0 var(--space-4)}
+.btn--block{width:100%}
+.btn--lg{min-height:64px;font-size:1.35rem;padding:0 var(--space-8)}
+
+/* ==========================================================================
+   §2  CARDS & SHELL
+   ========================================================================== */
+.card{
+  background:var(--white); border:3px solid var(--border);
+  border-radius:var(--r-3xl); padding:var(--space-6);
+  box-shadow:var(--shadow-card);
+}
+.card--tight{padding:var(--space-4);border-radius:var(--r-2xl)}
+.card--maroon{background:var(--maroon);color:var(--white);border-color:var(--maroon-900)}
+.shell{max-width:1400px;margin:0 auto;padding:var(--space-4);overflow-x:hidden}
+.stack{display:flex;flex-direction:column;gap:var(--space-4);min-width:0}
+.row{display:flex;align-items:center;gap:var(--space-3);flex-wrap:wrap}
+.spacer{flex:1}
+.screen{display:none;animation:screenIn var(--dur-slow) var(--ease-out)}
+.screen.is-active{display:block}
+@keyframes screenIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+.eyebrow{font-family:'Baloo 2',cursive;font-weight:700;font-size:.8rem;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--maroon-600)}
+.muted-text{color:#6B5555;font-size:.9rem}
+
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;
+  border-radius:var(--r-pill);font-family:'Baloo 2',cursive;font-weight:700;font-size:.82rem;
+  background:var(--muted);border:2px solid var(--border)}
+.pill--gold{background:var(--gold);border-color:#B89B00;color:var(--ink)}
+.pill--green{background:#DCFCE7;border-color:var(--green-ink);color:#0D5A2B}
+.pill--red{background:#FEE2E2;border-color:var(--red);color:#991B1B}
+.pill--live{background:var(--maroon);border-color:var(--maroon-900);color:var(--white)}
+
+/* ==========================================================================
+   §3  HOME / LOBBY
+   ========================================================================== */
+.hero{text-align:center;padding:var(--space-8) var(--space-4) var(--space-6)}
+.hero h1{font-size:clamp(2.2rem,7vw,4rem);color:var(--maroon);letter-spacing:-.5px}
+.hero p{font-size:clamp(1rem,2.4vw,1.2rem);color:#6B5555;margin-top:var(--space-2)}
+.mascot{width:clamp(96px,18vw,140px);height:auto;animation:float 4s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-10px) rotate(2deg)}}
+
+.choice-grid{display:grid;gap:var(--space-4);grid-template-columns:1fr;max-width:820px;margin:0 auto}
+@media(min-width:720px){.choice-grid{grid-template-columns:1fr 1fr}}
+.choice{text-align:left;transition:transform var(--dur) var(--ease-spring),box-shadow var(--dur) var(--ease-out)}
+.choice:hover{transform:translateY(-4px);box-shadow:0 8px 0 var(--border),0 20px 40px rgba(74,0,0,.16)}
+.choice h3{font-size:1.5rem;color:var(--maroon);margin-bottom:6px}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-family:'Baloo 2',cursive;font-weight:700;font-size:.95rem;color:var(--maroon-900)}
+.field input,.field select{
+  min-height:52px;padding:0 var(--space-4);border:3px solid var(--border);
+  border-radius:var(--r-lg);background:var(--white);font-weight:700;
+  transition:border-color var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out);
+}
+.field input:focus,.field select:focus{outline:none;border-color:var(--maroon);
+  box-shadow:0 0 0 4px rgba(128,0,0,.14)}
+.field .hint{font-size:.82rem;color:#6B5555}
+.field .err{font-size:.85rem;font-weight:700;color:var(--red);min-height:1.1em}
+.code-input{text-transform:uppercase;letter-spacing:.22em;font-family:'Baloo 2',cursive;
+  font-size:1.35rem;text-align:center;font-weight:800}
+
+.roomcode{font-family:'Baloo 2',cursive;font-weight:800;
+  font-size:clamp(2.6rem,10vw,4.6rem);color:var(--maroon);letter-spacing:.06em;line-height:1}
+
+/* ==========================================================================
+   §4  GAME LAYOUT
+   ========================================================================== */
+.game-grid{display:grid;gap:var(--space-4);grid-template-columns:minmax(0,1fr)}
+/* Grid and flex children default to min-width:auto, which would let the wide
+   timeline push the whole page sideways instead of scrolling inside its own
+   container. These zero out that floor. */
+.game-grid>*,.stack>*{min-width:0}
+.timeline-wrap{max-width:100%}
+@media(min-width:1024px){.game-grid{grid-template-columns:minmax(0,1fr) 340px;align-items:start}
+  .game-side{position:sticky;top:var(--space-4)}}
+
+.round-banner{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap}
+.round-banner h2{font-size:clamp(1.3rem,3.6vw,1.9rem);color:var(--white)}
+
+/* Timer ring */
+.timer{position:relative;width:76px;height:76px;flex:none}
+.timer svg{transform:rotate(-90deg);width:100%;height:100%}
+.timer circle{fill:none;stroke-width:9;stroke-linecap:round}
+.timer .track{stroke:rgba(255,255,255,.22)}
+.timer .prog{stroke:var(--gold);transition:stroke-dashoffset 1s linear,stroke var(--dur)}
+.timer.is-urgent .prog{stroke:#FF6B6B}
+.timer.is-urgent{animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+.timer span{position:absolute;inset:0;display:grid;place-items:center;
+  font-family:'Baloo 2',cursive;font-weight:800;font-size:1.3rem;color:var(--white)}
+
+.attempts{display:flex;gap:6px}
+.attempt-pip{width:14px;height:14px;border-radius:50%;background:var(--gold);
+  border:2px solid rgba(0,0,0,.25);transition:background var(--dur),transform var(--dur)}
+.attempt-pip.is-used{background:rgba(255,255,255,.2);transform:scale(.8)}
+
+/* Process table */
+.ptable{width:100%;border-collapse:collapse;font-weight:700}
+.ptable th,.ptable td{padding:9px 10px;text-align:center;border-bottom:2px solid var(--border)}
+.ptable th{font-family:'Baloo 2',cursive;font-size:.8rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--maroon-600)}
+.ptable tbody tr:last-child td{border-bottom:none}
+.ptable .pid-cell{display:inline-flex;align-items:center;gap:7px}
+.swatch{width:18px;height:18px;border-radius:6px;border:2px solid rgba(0,0,0,.22);flex:none}
+
+/* Process palette */
+.palette{display:flex;gap:var(--space-2);flex-wrap:wrap}
+.chip{
+  position:relative;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:74px;min-height:64px;padding:8px 14px;border-radius:var(--r-lg);
+  font-family:'Baloo 2',cursive;font-weight:800;
+  color:var(--chip-fg);background:var(--chip-bg);
+  border:3px solid transparent; box-shadow:0 4px 0 rgba(0,0,0,.28);
+  transition:transform var(--dur-fast) var(--ease-spring),box-shadow var(--dur-fast) var(--ease-spring),
+             outline-color var(--dur-fast);
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+.chip:active{transform:translateY(4px);box-shadow:0 0 0 rgba(0,0,0,.28)}
+.chip .chip-pid{font-size:1.15rem;line-height:1}
+.chip .chip-rem{font-size:.72rem;opacity:.92;font-weight:700;margin-top:2px}
+.chip.is-selected{outline:4px solid var(--ink);outline-offset:3px;transform:translateY(-3px)}
+.chip.is-done{opacity:.42;filter:grayscale(.5)}
+.chip--eraser{--chip-bg:var(--white);--chip-fg:var(--maroon);border-color:var(--border)}
+
+/* Timeline */
+.timeline-wrap{overflow-x:auto;overflow-y:hidden;padding:var(--space-2) 2px var(--space-4);
+  scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}
+.timeline-wrap:focus-visible{outline-offset:-3px}
+.ruler,.track-row{display:grid;gap:3px;grid-auto-flow:column;grid-auto-columns:var(--cell)}
+.ruler{margin-bottom:5px}
+.tick{font-family:'Baloo 2',cursive;font-weight:700;font-size:.72rem;color:#6B5555;
+  text-align:center;scroll-snap-align:start}
+.slot{
+  height:var(--cell);border-radius:var(--r-md);
+  border:3px dashed var(--border);background:var(--white);
+  display:grid;place-items:center;
+  font-family:'Baloo 2',cursive;font-weight:800;font-size:.95rem;
+  color:#B9A5A5; position:relative; scroll-snap-align:start;
+  transition:transform var(--dur-fast) var(--ease-spring),background var(--dur-fast),
+             border-color var(--dur-fast),box-shadow var(--dur-fast);
+  touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+}
+.slot:hover:not(.is-filled){background:var(--muted);border-color:var(--maroon-600)}
+.slot:active{transform:scale(.93)}
+.slot.is-filled{border-style:solid;border-color:rgba(0,0,0,.22);
+  background:var(--slot-bg);color:var(--slot-fg)}
+.slot.is-drop-target{border-color:var(--purple-ink);background:#F5E9FF;transform:scale(1.06)}
+.slot.just-placed{animation:pop var(--dur-slow) var(--ease-spring)}
+@keyframes pop{0%{transform:scale(.6)}60%{transform:scale(1.12)}100%{transform:scale(1)}}
+.slot.is-rejected{animation:shake 220ms ease-in-out}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}
+  50%{transform:translateX(5px)}75%{transform:translateX(-3px)}}
+/* Teammate is looking at this slot */
+.slot.is-peered{box-shadow:0 0 0 3px var(--peer-color),0 0 14px var(--peer-color)}
+.slot .peer-tag{position:absolute;top:-9px;right:-6px;width:20px;height:20px;border-radius:50%;
+  background:var(--peer-color);color:#fff;font-size:.62rem;font-weight:800;
+  display:grid;place-items:center;border:2px solid var(--white);pointer-events:none}
+/* Revealed answer overlay */
+.slot.is-answer{border-style:solid;border-color:var(--green-ink);
+  box-shadow:inset 0 0 0 3px rgba(21,128,61,.35)}
+.slot.is-wrong{box-shadow:inset 0 0 0 3px var(--red)}
+
+.legend{display:flex;gap:var(--space-3);flex-wrap:wrap;font-size:.82rem;color:#6B5555}
+.legend span{display:inline-flex;align-items:center;gap:5px}
+.legend i{width:14px;height:14px;border-radius:4px;display:inline-block}
+
+/* ==========================================================================
+   §5  SIDE PANEL — presence, leaderboard
+   ========================================================================== */
+.dock{display:flex;gap:var(--space-2);flex-wrap:wrap}
+.avatar{position:relative;width:44px;height:44px;border-radius:14px;
+  display:grid;place-items:center;font-family:'Baloo 2',cursive;font-weight:800;
+  color:#fff;border:3px solid var(--white);box-shadow:0 3px 0 rgba(0,0,0,.2)}
+.avatar[data-self="1"]::after{content:'';position:absolute;inset:-6px;border-radius:18px;
+  border:3px solid var(--gold)}
+.avatar .dot{position:absolute;bottom:-3px;right:-3px;width:12px;height:12px;border-radius:50%;
+  background:var(--green);border:2px solid var(--white)}
+
+.lb-row{display:grid;grid-template-columns:34px 1fr auto;align-items:center;gap:var(--space-3);
+  padding:11px var(--space-3);border-radius:var(--r-lg);background:var(--muted);
+  border:2px solid var(--border);
+  transition:transform var(--dur-slow) var(--ease-spring),background var(--dur)}
+.lb-row + .lb-row{margin-top:7px}
+.lb-row.is-me{background:var(--gold);border-color:#B89B00}
+.lb-rank{font-family:'Baloo 2',cursive;font-weight:800;font-size:1.05rem;text-align:center}
+.lb-row:nth-child(1) .lb-rank{color:#B8860B}
+.lb-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lb-score{font-family:'Baloo 2',cursive;font-weight:800;color:var(--maroon)}
+.lb-sub{font-size:.74rem;color:#6B5555;font-weight:700}
+
+/* ==========================================================================
+   §6  FX — toasts, score popups, confetti
+   ========================================================================== */
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:90}
+#toasts{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);z-index:100;display:flex;flex-direction:column;
+  gap:var(--space-2);align-items:center;width:min(92vw,440px)}
+.toast{width:100%;padding:13px var(--space-4);border-radius:var(--r-lg);
+  background:var(--ink);color:var(--white);font-weight:700;
+  box-shadow:0 10px 30px rgba(0,0,0,.3);animation:toastIn var(--dur) var(--ease-spring)}
+.toast--good{background:var(--green-ink)}
+.toast--bad{background:var(--red)}
+.toast--info{background:var(--maroon)}
+@keyframes toastIn{from{opacity:0;transform:translateY(18px) scale(.94)}to{opacity:1;transform:none}}
+.toast.is-leaving{animation:toastOut var(--dur-fast) var(--ease-out) forwards}
+@keyframes toastOut{to{opacity:0;transform:translateY(-8px) scale(.96)}}
+
+.score-pop{position:fixed;z-index:95;pointer-events:none;
+  font-family:'Baloo 2',cursive;font-weight:800;font-size:2rem;color:var(--green-ink);
+  text-shadow:0 3px 0 #fff,0 0 22px rgba(34,197,94,.55);
+  animation:scorePop 1s var(--ease-out) forwards}
+@keyframes scorePop{0%{opacity:0;transform:translate(-50%,0) scale(.5)}
+  25%{opacity:1;transform:translate(-50%,-18px) scale(1.15)}
+  100%{opacity:0;transform:translate(-50%,-90px) scale(1)}}
+
+.badge-offline{position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:80;
+  background:var(--purple-ink);color:#fff;font-family:'Baloo 2',cursive;font-weight:700;
+  font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;
+  padding:5px 18px;border-radius:0 0 14px 14px}
+
+/* ==========================================================================
+   §7  RESULTS / TEACHER
+   ========================================================================== */
+.podium{display:grid;grid-template-columns:repeat(3,1fr);gap:var(--space-3);
+  align-items:end;max-width:640px;margin:0 auto}
+.podium-col{text-align:center}
+.podium-bar{border-radius:var(--r-2xl) var(--r-2xl) 0 0;display:grid;place-items:center;
+  font-family:'Baloo 2',cursive;font-weight:800;font-size:2rem;color:#fff}
+.podium-col:nth-child(1) .podium-bar{background:#9CA3AF;height:96px}
+.podium-col:nth-child(2) .podium-bar{background:var(--gold);color:var(--ink);height:132px}
+.podium-col:nth-child(3) .podium-bar{background:#B45309;height:76px}
+
+.matrix{width:100%;border-collapse:collapse;font-size:.86rem;font-weight:700}
+.matrix th,.matrix td{padding:9px 8px;text-align:center;border:2px solid var(--border);
+  white-space:nowrap}
+.matrix th{background:var(--muted);font-family:'Baloo 2',cursive;font-size:.76rem;
+  text-transform:uppercase;letter-spacing:.06em;color:var(--maroon-600)}
+.matrix td.name{text-align:left}
+.matrix-wrap{overflow-x:auto}
+.cell-solved{background:#DCFCE7;color:#0D5A2B}
+.cell-empty{color:#C9B8B8}
+
+.breakdown{width:100%;border-collapse:collapse;font-weight:700}
+.breakdown th,.breakdown td{padding:11px 10px;border-bottom:2px solid var(--border);text-align:center}
+.breakdown td:first-child,.breakdown th:first-child{text-align:left}
+
+/* ==========================================================================
+   §8  RESPONSIVE
+   ========================================================================== */
+@media(max-width:1023px){
+  :root{--cell:48px}
+  .palette-bar{position:sticky;bottom:0;z-index:40;
+    background:rgba(255,255,255,.97);backdrop-filter:blur(8px);
+    border-top:3px solid var(--border);border-radius:var(--r-2xl) var(--r-2xl) 0 0;
+    padding:var(--space-3);margin:0 calc(-1 * var(--space-4));
+    padding-bottom:calc(var(--space-3) + env(safe-area-inset-bottom));
+    box-shadow:0 -8px 24px rgba(74,0,0,.10)}
+}
+@media(min-width:1024px){:root{--cell:42px}}
+@media(max-width:480px){
+  .shell{padding:var(--space-3)}
+  .card{padding:var(--space-4);border-radius:var(--r-2xl)}
+  .btn--lg{min-height:56px;font-size:1.1rem}
+}
+
+/* ==========================================================================
+   §9  REDUCED MOTION — keep state changes, drop movement
+   ========================================================================== */
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{
+    animation-duration:.01ms !important;animation-iteration-count:1 !important;
+    transition-duration:.01ms !important;scroll-behavior:auto !important}
+  .mascot,.timer.is-urgent{animation:none !important}
+  #confetti{display:none !important}
+  .btn:active:not(:disabled){transform:none;box-shadow:0 5px 0 var(--btn-edge);filter:brightness(.9)}
+  .chip:active,.slot:active{transform:none}
+}
+</style>
+</head>
+<body>
+
+<div id="offlineBadge" class="badge-offline" hidden>Offline Practice Mode</div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<div id="toasts" role="status" aria-live="polite"></div>
+
+<main class="shell">
+
+  <!-- ===================== HOME ===================== -->
+  <section id="screen-home" class="screen is-active">
+    <div class="hero">
+      <svg class="mascot" viewBox="0 0 120 120" role="img" aria-label="Friendly CPU chip mascot">
+        <g stroke="#4A0000" stroke-width="5" stroke-linecap="round">
+          <path d="M30 22V10M50 22V10M70 22V10M90 22V10M30 110V98M50 110V98M70 110V98M90 110V98"/>
+          <path d="M22 30H10M22 50H10M22 70H10M22 90H10M110 30H98M110 50H98M110 70H98M110 90H98"/>
+        </g>
+        <rect x="20" y="20" width="80" height="80" rx="20" fill="#800000" stroke="#4A0000" stroke-width="5"/>
+        <rect x="34" y="34" width="52" height="52" rx="12" fill="#A31515"/>
+        <circle cx="48" cy="54" r="7" fill="#fff"/><circle cx="72" cy="54" r="7" fill="#fff"/>
+        <circle cx="50" cy="56" r="3.5" fill="#1A0A0A"/><circle cx="74" cy="56" r="3.5" fill="#1A0A0A"/>
+        <path d="M48 72q12 9 24 0" stroke="#FFD700" stroke-width="4.5" fill="none" stroke-linecap="round"/>
+      </svg>
+      <h1>CPU Scheduling Co-Op</h1>
+      <p>Team up. Build the Gantt chart together. Climb the leaderboard.</p>
+    </div>
+
+    <div class="choice-grid">
+      <div class="card choice">
+        <span class="eyebrow">For the teacher</span>
+        <h3>Create a Room</h3>
+        <p class="muted-text" style="margin-bottom:16px">
+          Generates a room code, controls the 6 rounds, and exports scores to CSV.
+        </p>
+        <button class="btn btn--block btn--lg" id="btnCreateRoom">Create Room</button>
+      </div>
+
+      <div class="card choice">
+        <span class="eyebrow">For students</span>
+        <h3>Join Your Team</h3>
+        <form id="joinForm" class="stack" style="margin-top:12px" novalidate>
+          <div class="field">
+            <label for="inRoom">Room code</label>
+            <input id="inRoom" class="code-input" placeholder="CPU-42" maxlength="7"
+                   autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+          </div>
+          <div class="field">
+            <label for="inTeam">Group</label>
+            <select id="inTeam" required></select>
+          </div>
+          <div class="field">
+            <label for="inName">Your name</label>
+            <input id="inName" placeholder="Juan Dela Cruz" maxlength="24" autocomplete="name" required>
+          </div>
+          <p class="err" id="joinErr" role="alert"></p>
+          <button class="btn btn--gold btn--block btn--lg" type="submit">Join Game</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== LOBBY ===================== -->
+  <section id="screen-lobby" class="screen">
+    <div class="stack">
+      <div class="card" style="text-align:center">
+        <span class="eyebrow">Room code — share with the class</span>
+        <div class="row" style="justify-content:center;margin:10px 0 4px">
+          <span class="roomcode" id="lobbyCode">CPU-00</span>
+          <button class="btn btn--ghost btn--sm" id="btnCopyCode" aria-label="Copy room code">Copy</button>
+        </div>
+        <p class="muted-text" id="lobbyHint">Waiting for the teacher to start the tournament…</p>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:14px">
+          <h3 style="color:var(--maroon)">Groups</h3>
+          <span class="spacer"></span>
+          <span class="pill" id="lobbyCount">0 players</span>
+        </div>
+        <div id="lobbyTeams" class="stack"></div>
+      </div>
+
+      <div id="lobbyHostBar" class="card row" hidden>
+        <div>
+          <strong class="font-display" style="color:var(--maroon)">You are the host</strong>
+          <p class="muted-text">All groups get the same problem each round.</p>
+        </div>
+        <span class="spacer"></span>
+        <button class="btn btn--green btn--lg" id="btnStartTournament">Start Round 1</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== GAME ===================== -->
+  <section id="screen-game" class="screen">
+    <div class="game-grid">
+
+      <div class="stack">
+        <div class="card card--maroon">
+          <div class="round-banner">
+            <div class="timer" id="timer">
+              <svg viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="track" cx="50" cy="50" r="42"/>
+                <circle class="prog" id="timerProg" cx="50" cy="50" r="42"/>
+              </svg>
+              <span id="timerText">90</span>
+            </div>
+            <div style="min-width:0">
+              <span class="eyebrow" style="color:var(--gold)" id="roundLabel">Round 1 of 6</span>
+              <h2 id="algoLabel">First-Come, First-Served</h2>
+              <p style="opacity:.85;font-size:.9rem" id="algoHint">Run each process in arrival order.</p>
+            </div>
+            <span class="spacer"></span>
+            <div style="text-align:right">
+              <span class="eyebrow" style="color:var(--gold);display:block;margin-bottom:5px">Attempts left</span>
+              <div class="attempts" id="attemptPips" role="img" aria-label="3 of 3 attempts remaining"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row" style="margin-bottom:12px">
+            <h3 style="color:var(--maroon)">Process Table</h3>
+            <span class="spacer"></span>
+            <span class="pill" id="quantumPill" hidden>Quantum q = 2</span>
+          </div>
+          <table class="ptable"><thead id="ptableHead"></thead><tbody id="ptableBody"></tbody></table>
+        </div>
+
+        <div class="card">
+          <div class="row" style="margin-bottom:12px">
+            <h3 style="color:var(--maroon)">Team Gantt Chart</h3>
+            <span class="spacer"></span>
+            <button class="btn btn--ghost btn--sm" id="btnClearBoard">Clear board</button>
+          </div>
+          <div class="timeline-wrap" id="timelineWrap" tabindex="0"
+               role="group" aria-label="Gantt timeline. Use arrow keys to move between slots, Enter to place the selected process.">
+            <div class="ruler" id="ruler"></div>
+            <div class="track-row" id="track"></div>
+          </div>
+          <div class="legend">
+            <span><i style="background:var(--white);border:3px dashed var(--border)"></i>Empty = CPU idle</span>
+            <span><i style="background:var(--gold)"></i>Teammate is here</span>
+          </div>
+        </div>
+
+        <div class="card palette-bar">
+          <div class="row" style="margin-bottom:10px">
+            <h3 style="color:var(--maroon);font-size:1.1rem">Pick a process, then tap the timeline</h3>
+          </div>
+          <div class="palette" id="palette"></div>
+        </div>
+
+        <div class="card">
+          <h3 style="color:var(--maroon);margin-bottom:12px">Submit Team Answer</h3>
+          <div class="row" style="align-items:flex-end;gap:var(--space-4)">
+            <div class="field" style="flex:1;min-width:150px">
+              <label for="inTAT">Average Turnaround Time</label>
+              <input id="inTAT" type="number" step="0.01" inputmode="decimal" placeholder="0.00">
+            </div>
+            <div class="field" style="flex:1;min-width:150px">
+              <label for="inWT">Average Waiting Time</label>
+              <input id="inWT" type="number" step="0.01" inputmode="decimal" placeholder="0.00">
+            </div>
+          </div>
+          <p class="hint muted-text" style="margin:8px 0 14px">Round to 2 decimal places.</p>
+          <button class="btn btn--green btn--block btn--lg" id="btnSubmit">Submit Answer</button>
+          <p class="err" id="submitErr" role="alert"></p>
+        </div>
+      </div>
+
+      <aside class="stack game-side">
+        <div class="card card--tight">
+          <div class="row" style="margin-bottom:10px">
+            <span class="eyebrow">Active teammates</span>
+            <span class="spacer"></span>
+            <span class="pill pill--live" id="teamNameChip">Group 01</span>
+          </div>
+          <div class="dock" id="presenceDock"></div>
+        </div>
+
+        <div class="card card--tight">
+          <div class="row" style="margin-bottom:10px">
+            <span class="eyebrow">Live leaderboard</span>
+            <span class="spacer"></span>
+            <span class="pill pill--gold" id="myScoreChip">0 pts</span>
+          </div>
+          <div id="leaderboard"></div>
+        </div>
+      </aside>
+
+    </div>
+  </section>
+
+  <!-- ===================== RESULTS ===================== -->
+  <section id="screen-results" class="screen">
+    <div class="stack">
+      <div class="card" style="text-align:center">
+        <span class="eyebrow">Tournament complete</span>
+        <h1 style="color:var(--maroon);font-size:clamp(1.8rem,6vw,3rem);margin:6px 0 20px">Final Standings</h1>
+        <div class="podium" id="podium"></div>
+      </div>
+      <div class="card">
+        <h3 style="color:var(--maroon);margin-bottom:12px">Your Group's Rounds</h3>
+        <div class="matrix-wrap">
+          <table class="breakdown"><thead id="bdHead"></thead><tbody id="bdBody"></tbody></table>
+        </div>
+      </div>
+      <div class="card row">
+        <button class="btn btn--ghost" id="btnBackHome">Back to start</button>
+        <span class="spacer"></span>
+        <button class="btn btn--gold" id="btnExportResults">Export Scores to CSV</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TEACHER ===================== -->
+  <section id="screen-teacher" class="screen">
+    <div class="stack">
+      <div class="card card--maroon">
+        <div class="row">
+          <div>
+            <span class="eyebrow" style="color:var(--gold)">Host console — Room</span>
+            <h2 id="tCode" style="font-size:2rem">CPU-00</h2>
+          </div>
+          <span class="spacer"></span>
+          <div class="timer" id="tTimer">
+            <svg viewBox="0 0 100 100" aria-hidden="true">
+              <circle class="track" cx="50" cy="50" r="42"/>
+              <circle class="prog" id="tTimerProg" cx="50" cy="50" r="42"/>
+            </svg>
+            <span id="tTimerText">--</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:14px">
+          <h3 style="color:var(--maroon)" id="tRoundTitle">Round 1 — FCFS</h3>
+          <span class="spacer"></span>
+          <span class="pill" id="tStatus">Waiting</span>
+        </div>
+        <div class="row">
+          <button class="btn btn--green" id="btnHostStart">Start Round</button>
+          <button class="btn btn--purple" id="btnHostReveal">Reveal Answer</button>
+          <button class="btn btn--gold" id="btnHostNext">Next Round</button>
+          <span class="spacer"></span>
+          <button class="btn btn--ghost" id="btnHostEnd">End Tournament</button>
+        </div>
+        <div id="tAnswer" class="stack" style="margin-top:18px" hidden>
+          <span class="eyebrow">Correct answer this round</span>
+          <div class="timeline-wrap"><div class="ruler" id="tRuler"></div><div class="track-row" id="tTrack"></div></div>
+          <p style="font-weight:700">Average TAT <span id="tTAT" style="color:var(--maroon)"></span>
+             &nbsp;·&nbsp; Average WT <span id="tWT" style="color:var(--maroon)"></span></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:14px">
+          <h3 style="color:var(--maroon)">Class Progress</h3>
+          <span class="spacer"></span>
+          <button class="btn btn--gold btn--sm" id="btnExportCSV">Export All Scores to CSV</button>
+        </div>
+        <div class="matrix-wrap">
+          <table class="matrix"><thead id="mxHead"></thead><tbody id="mxBody"></tbody></table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+'use strict';
+/* ==========================================================================
+   §1  CONFIG
+   --------------------------------------------------------------------------
+   Paste your Firebase Realtime Database credentials below. While `apiKey`
+   still reads PASTE_..., the app runs in Offline Practice Mode: a
+   BroadcastChannel-backed stand-in that syncs across tabs on this machine so
+   you can rehearse the whole tournament before a class.
+   ========================================================================== */
+const firebaseConfig = {
+  apiKey:            "AIzaSyBPoxK5fzWshSLlutkv8Tu31i-635iZX8w",
+  authDomain:        "os-scheduling-27bcf.firebaseapp.com",
+  databaseURL:       "https://os-scheduling-27bcf-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "os-scheduling-27bcf",
+  storageBucket:     "os-scheduling-27bcf.firebasestorage.app",
+  messagingSenderId: "877820365809",
+  appId:             "1:877820365809:web:3ebaee0cf50bcc0ae81250",
+  measurementId:     "G-YJPF185RN5"
+};
+
+const ROUNDS = [
+  { algo:'fcfs',       label:'First-Come, First-Served', short:'FCFS',        sec:90,
+    hint:'Run each process in the order it arrives. No preemption.' },
+  { algo:'priorityNP', label:'Priority (Non-Preemptive)', short:'Priority NP', sec:120,
+    hint:'Lowest priority number wins. Once running, a process finishes.' },
+  { algo:'sjf',        label:'Shortest Job First',        short:'SJF',         sec:150,
+    hint:'Among arrived processes, run the shortest burst first. No preemption.' },
+  { algo:'priorityP',  label:'Priority (Preemptive)',     short:'Priority P',  sec:180,
+    hint:'A higher-priority arrival preempts the running process immediately.' },
+  { algo:'srtf',       label:'Shortest Remaining Time First', short:'SRTF',    sec:210,
+    hint:'Always run the process with the least time remaining. Preemptive.' },
+  { algo:'rr',         label:'Round Robin',               short:'Round Robin', sec:240,
+    hint:'Each process runs up to q units, then goes to the back of the queue.' }
+];
+
+const TEAM_IDS = ['g1','g2','g3','g4','g5','g6','g7','g8'];
+const teamLabel = (id) => 'Group ' + String(TEAM_IDS.indexOf(id) + 1).padStart(2, '0');
+const MAX_MEMBERS = 8;
+
+/* Every fill below is paired with a text colour verified at >= 4.5:1. */
+const PROC_COLORS = [
+  { bg:'#800000', fg:'#FFFFFF' }, { bg:'#0E7490', fg:'#FFFFFF' },
+  { bg:'#7E22CE', fg:'#FFFFFF' }, { bg:'#15803D', fg:'#FFFFFF' },
+  { bg:'#FFD700', fg:'#1A0A0A' }, { bg:'#C2410C', fg:'#FFFFFF' }
+];
+const AVATAR_COLORS = ['#800000','#0E7490','#7E22CE','#15803D','#C2410C','#B8860B','#0F766E','#9D174D'];
+const colorFor = (pid) => PROC_COLORS[(parseInt(pid.slice(1),10) - 1) % PROC_COLORS.length];
+
+/* ==========================================================================
+   §2  CORRECTNESS CORE  (verified against Silberschatz Ch.6 in Node — see README)
+   ========================================================================== */
+function hashStr(s){let h=2166136261>>>0;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)>>>0;}return h>>>0;}
+function mulberry32(seed){let a=seed>>>0;return function(){a=(a+0x6D2B79F5)>>>0;let t=a;t=Math.imul(t^(t>>>15),t|1);t^=t+Math.imul(t^(t>>>7),t|61);return((t^(t>>>14))>>>0)/4294967296;};}
+function seedFor(roomCode,roundIndex){return (Math.imul(hashStr(String(roomCode).toUpperCase()),31)+roundIndex*2654435761)>>>0;}
+const rngInt=(rnd,lo,hi)=>lo+Math.floor(rnd()*(hi-lo+1));
+function rngShuffle(rnd,arr){const a=arr.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[a[i],a[j]]=[a[j],a[i]];}return a;}
+function rngDistinct(rnd,lo,hi,k){const pool=[];for(let v=lo;v<=hi;v++)pool.push(v);return rngShuffle(rnd,pool).slice(0,k);}
+
+const pidNum = (pid) => parseInt(pid.slice(1), 10);
+
+function mergeSlots(slots){
+  const segs=[];
+  for(let t=0;t<slots.length;t++){
+    const pid = (slots[t]===null||slots[t]===undefined) ? 'IDLE' : slots[t];
+    const last = segs[segs.length-1];
+    if(last && last.pid===pid) last.end = t+1;
+    else segs.push({pid,start:t,end:t+1});
+  }
+  return segs;
+}
+function metricsFrom(procs,completion){
+  const per={}; let sumT=0,sumW=0;
+  for(const p of procs){
+    const tat=completion[p.pid]-p.at, wt=tat-p.bt;
+    per[p.pid]={completion:completion[p.pid],tat,wt}; sumT+=tat; sumW+=wt;
+  }
+  const r2=(x)=>Math.round(x*100)/100;
+  return {perProcess:per,avgTAT:r2(sumT/procs.length),avgWT:r2(sumW/procs.length)};
+}
+/** Freeze a dispatch decision into plain values — key arrays must be resolved
+ *  at the instant of the decision, since `rem` mutates as the sim advances. */
+function snapshot(t,ranked,key){
+  return {t, ready: ranked.map(p=>({pid:p.pid,at:p.at,key:key(p).slice()}))};
+}
+function cmpBy(key){
+  return (a,b)=>{
+    const ka=key(a),kb=key(b);
+    for(let i=0;i<ka.length;i++) if(ka[i]!==kb[i]) return ka[i]-kb[i];
+    if(a.at!==b.at) return a.at-b.at;
+    return pidNum(a.pid)-pidNum(b.pid);
+  };
+}
+function simNonPreemptive(procs,key,trace){
+  const n=procs.length,slots=[],completion={},finished=new Set(); let t=0;
+  while(finished.size<n){
+    const ready=procs.filter(p=>!finished.has(p.pid)&&p.at<=t);
+    if(!ready.length){slots[t]=null;t++;continue;}
+    const ranked=ready.slice().sort(cmpBy(key));
+    if(trace) trace.push(snapshot(t,ranked,key));
+    const pick=ranked[0];
+    for(let i=0;i<pick.bt;i++) slots[t+i]=pick.pid;
+    t+=pick.bt; completion[pick.pid]=t; finished.add(pick.pid);
+  }
+  return {slots,completion};
+}
+function simPreemptive(procs,key,trace){
+  const n=procs.length,slots=[],completion={},rem={};
+  procs.forEach(p=>{rem[p.pid]=p.bt;});
+  let t=0,done=0;
+  while(done<n){
+    const ready=procs.filter(p=>rem[p.pid]>0&&p.at<=t);
+    if(!ready.length){slots[t]=null;t++;continue;}
+    const k=(p)=>key(p,rem);
+    const ranked=ready.slice().sort(cmpBy(k));
+    if(trace) trace.push(snapshot(t,ranked,k));
+    const pick=ranked[0];
+    slots[t]=pick.pid; rem[pick.pid]--; t++;
+    if(rem[pick.pid]===0){completion[pick.pid]=t;done++;}
+  }
+  return {slots,completion};
+}
+/** Round Robin. Arrivals landing exactly on a quantum boundary enter the queue
+ *  BEFORE the preempted process is requeued — and the generator refuses to emit
+ *  problems whose answer depends on that convention. */
+function simRR(procs,quantum,trace){
+  const sorted=procs.slice().sort((a,b)=>a.at-b.at||pidNum(a.pid)-pidNum(b.pid));
+  const slots=[],completion={},rem={}; procs.forEach(p=>{rem[p.pid]=p.bt;});
+  let ptr=0,t=0,done=0; const queue=[];
+  const enqueueUpTo=(time)=>{while(ptr<sorted.length&&sorted[ptr].at<=time) queue.push(sorted[ptr++]);};
+  enqueueUpTo(0);
+  while(done<procs.length){
+    if(!queue.length){slots[t]=null;t++;enqueueUpTo(t);continue;}
+    const cur=queue.shift(), run=Math.min(quantum,rem[cur.pid]);
+    for(let i=0;i<run;i++){slots[t]=cur.pid;t++;enqueueUpTo(t);}
+    rem[cur.pid]-=run;
+    if(rem[cur.pid]===0){completion[cur.pid]=t;done++;}
+    else {if(trace) trace.push({type:'requeue',t}); queue.push(cur);}
+  }
+  return {slots,completion};
+}
+const KEYS={fcfs:p=>[p.at],sjf:p=>[p.bt],priorityNP:p=>[p.pr],priorityP:p=>[p.pr],srtf:(p,rem)=>[rem[p.pid]]};
+
+function solve(algo,problem,trace){
+  const {procs,quantum}=problem; let r;
+  if(algo==='fcfs'||algo==='sjf'||algo==='priorityNP') r=simNonPreemptive(procs,KEYS[algo],trace);
+  else if(algo==='srtf'||algo==='priorityP') r=simPreemptive(procs,KEYS[algo],trace);
+  else if(algo==='rr') r=simRR(procs,quantum,trace);
+  else throw new Error('unknown algo: '+algo);
+  return {slots:r.slots,segments:mergeSlots(r.slots),...metricsFrom(procs,r.completion)};
+}
+
+function hasAmbiguity(algo,problem){
+  const trace=[];
+  try{ solve(algo,problem,trace); }catch(e){ return true; }
+  if(algo==='rr'){
+    const arrivals=new Set(problem.procs.map(p=>p.at));
+    return trace.some(d=>d.type==='requeue'&&arrivals.has(d.t));
+  }
+  for(const d of trace){
+    if(d.ready.length<2) continue;
+    const [a,b]=d.ready;
+    if(a.key.every((v,i)=>v===b.key[i])) return true;
+  }
+  return false;
+}
+
+const FALLBACK={
+  fcfs:{procs:[{pid:'P1',at:0,bt:5,pr:2},{pid:'P2',at:2,bt:3,pr:1},{pid:'P3',at:4,bt:7,pr:4},{pid:'P4',at:9,bt:2,pr:3}],quantum:null},
+  sjf:{procs:[{pid:'P1',at:0,bt:7,pr:3},{pid:'P2',at:1,bt:4,pr:1},{pid:'P3',at:3,bt:9,pr:4},{pid:'P4',at:5,bt:2,pr:2}],quantum:null},
+  priorityNP:{procs:[{pid:'P1',at:0,bt:6,pr:3},{pid:'P2',at:1,bt:4,pr:1},{pid:'P3',at:3,bt:7,pr:5},{pid:'P4',at:6,bt:3,pr:2}],quantum:null},
+  priorityP:{procs:[{pid:'P1',at:0,bt:8,pr:4},{pid:'P2',at:2,bt:5,pr:2},{pid:'P3',at:5,bt:3,pr:1},{pid:'P4',at:9,bt:4,pr:3}],quantum:null},
+  srtf:{procs:[{pid:'P1',at:0,bt:8,pr:3},{pid:'P2',at:1,bt:4,pr:1},{pid:'P3',at:2,bt:9,pr:4},{pid:'P4',at:3,bt:5,pr:2}],quantum:null},
+  rr:{procs:[{pid:'P1',at:0,bt:7,pr:2},{pid:'P2',at:3,bt:5,pr:1},{pid:'P3',at:6,bt:9,pr:3},{pid:'P4',at:11,bt:4,pr:4}],quantum:3}
+};
+
+function generateProblem(algo,seed){
+  const rnd=mulberry32(seed);
+  for(let attempt=0;attempt<200;attempt++){
+    const n=rngInt(rnd,4,5);
+    const arrivals=[0,...rngDistinct(rnd,1,10,n-1)].sort((a,b)=>a-b);
+    const bursts = algo==='rr' ? rngDistinct(rnd,2,12,n) : rngDistinct(rnd,2,9,n);
+    const prioAssign=rngShuffle(rnd,rngDistinct(rnd,1,n+2,n));
+    const procs=[];
+    for(let i=0;i<n;i++) procs.push({pid:'P'+(i+1),at:arrivals[i],bt:bursts[i],pr:prioAssign[i]});
+    const quantum = algo==='rr' ? rngInt(rnd,2,4) : null;
+    const problem={procs,quantum};
+    if(hasAmbiguity(algo,problem)) continue;
+    const len=solve(algo,problem).slots.length;
+    if(len<12||len>34) continue;
+    return problem;
+  }
+  return JSON.parse(JSON.stringify(FALLBACK[algo]));
+}
+
+const near=(a,b)=>Number.isFinite(a)&&Number.isFinite(b)&&Math.abs(a-b)<0.011;
+
+function gradeSubmission(algo,problem,board,avgTAT,avgWT){
+  const sol=solve(algo,problem);
+  const want=sol.slots.map(s=>s||null), got=[];
+  for(let i=0;i<want.length;i++) got[i]=board[i]||null;
+  const overrun=board.slice(want.length).some(c=>c);
+  const ganttOK=!overrun&&want.every((v,i)=>v===got[i]);
+  const metricsOK=near(avgTAT,sol.avgTAT)&&near(avgWT,sol.avgWT);
+  return {ganttOK,metricsOK,solution:sol};
+}
+function scoreRound({ganttOK,metricsOK,secondsLeft,wrongAttempts}){
+  let s=0;
+  if(ganttOK) s+=100;
+  if(metricsOK) s+=100;
+  if(ganttOK&&metricsOK) s+=Math.max(0,Math.floor(secondsLeft));
+  s-=20*wrongAttempts;
+  return Math.max(0,s);
+}
+/** Upper bound on schedule length. Wide enough to never truncate a valid
+ *  answer, without revealing the exact end time to students. */
+const boardWidth = (problem) =>
+  Math.max(...problem.procs.map(p=>p.at)) + problem.procs.reduce((s,p)=>s+p.bt,0);
+
+/* ==========================================================================
+   §3  REALTIME ADAPTER  —  one interface, two backends
+   ========================================================================== */
+const RT = (function(){
+  const usingFirebase = !/^PASTE_/.test(firebaseConfig.apiKey || 'PASTE_');
+  let impl = null;
+
+  /* ---- Offline stand-in: BroadcastChannel + localStorage ---- */
+  function LocalRT(){
+    const KEY='cpucoop:db';
+    const bc = ('BroadcastChannel' in window) ? new BroadcastChannel('cpu-coop') : null;
+    let listeners=[], disconnects=[];
+
+    const read=()=>{try{return JSON.parse(localStorage.getItem(KEY))||{};}catch(e){return {};}};
+    const write=(db)=>{localStorage.setItem(KEY,JSON.stringify(db)); if(bc) bc.postMessage('x'); notify();};
+    const parts=(p)=>p.split('/').filter(Boolean);
+    const getIn=(db,p)=>parts(p).reduce((o,k)=>(o==null?undefined:o[k]),db);
+    function setIn(db,p,v){
+      const ks=parts(p); let o=db;
+      for(let i=0;i<ks.length-1;i++){ if(typeof o[ks[i]]!=='object'||o[ks[i]]===null) o[ks[i]]={}; o=o[ks[i]]; }
+      if(v===null||v===undefined) delete o[ks[ks.length-1]]; else o[ks[ks.length-1]]=v;
+      return db;
+    }
+    function notify(){
+      const db=read();
+      listeners.forEach(l=>{
+        const v=getIn(db,l.path), j=JSON.stringify(v===undefined?null:v);
+        if(j!==l.last){ l.last=j; try{ l.cb(v===undefined?null:v); }catch(e){ console.error(e); } }
+      });
+    }
+    if(bc) bc.onmessage=notify;
+    window.addEventListener('storage',e=>{ if(e.key===KEY) notify(); });
+    window.addEventListener('pagehide',()=>{
+      const db=read(); disconnects.forEach(p=>setIn(db,p,null));
+      localStorage.setItem(KEY,JSON.stringify(db)); if(bc) bc.postMessage('x');
+    });
+
+    return {
+      mode:'local',
+      serverNow:()=>Date.now(),
+      stamp:()=>Date.now(),
+      ref(path){
+        return {
+          on(cb){
+            const l={path,cb,last:' '}; listeners.push(l);
+            const v=getIn(read(),path); l.last=JSON.stringify(v===undefined?null:v);
+            cb(v===undefined?null:v);
+            return ()=>{ listeners=listeners.filter(x=>x!==l); };
+          },
+          once(){ const v=getIn(read(),path); return Promise.resolve(v===undefined?null:v); },
+          set(v){ write(setIn(read(),path,v)); return Promise.resolve(); },
+          update(obj){ const db=read(); Object.keys(obj).forEach(k=>setIn(db,path+'/'+k,obj[k])); write(db); return Promise.resolve(); },
+          remove(){ write(setIn(read(),path,null)); return Promise.resolve(); },
+          transaction(fn){
+            const db=read(), cur=getIn(db,path);
+            const next=fn(cur===undefined?null:cur);
+            if(next===undefined) return Promise.resolve({committed:false,value:cur});
+            write(setIn(db,path,next));
+            return Promise.resolve({committed:true,value:next});
+          },
+          onDisconnectRemove(){ if(!disconnects.includes(path)) disconnects.push(path); }
+        };
+      }
+    };
+  }
+
+  /* ---- Firebase Realtime Database ---- */
+  function FirebaseRT(){
+    const db = firebase.database();
+    let offset = 0;
+    db.ref('.info/serverTimeOffset').on('value', s => { offset = s.val() || 0; });
+    return {
+      mode:'firebase',
+      serverNow:()=>Date.now()+offset,
+      stamp:()=>firebase.database.ServerValue.TIMESTAMP,
+      ref(path){
+        const r=db.ref(path);
+        return {
+          on(cb){ const h=r.on('value',s=>cb(s.val())); return ()=>r.off('value',h); },
+          once(){ return r.once('value').then(s=>s.val()); },
+          set(v){ return r.set(v); },
+          update(o){ return r.update(o); },
+          remove(){ return r.remove(); },
+          transaction(fn){ return r.transaction(fn).then(res=>({committed:res.committed,value:res.snapshot.val()})); },
+          onDisconnectRemove(){ r.onDisconnect().remove(); }
+        };
+      }
+    };
+  }
+
+  function loadScript(src){
+    return new Promise((res,rej)=>{
+      const s=document.createElement('script'); s.src=src; s.onload=res;
+      s.onerror=()=>rej(new Error('Failed to load '+src)); document.head.appendChild(s);
+    });
+  }
+
+  return {
+    get mode(){ return impl.mode; },
+    serverNow(){ return impl.serverNow(); },
+    stamp(){ return impl.stamp(); },
+    ref(p){ return impl.ref(p); },
+    async init(){
+      if(usingFirebase){
+        try{
+          await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+          await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
+          firebase.initializeApp(firebaseConfig);
+          impl = FirebaseRT();
+          return;
+        }catch(err){
+          console.error('Firebase init failed, falling back to offline mode:', err);
+          toast('Could not reach Firebase — running offline.','bad',5000);
+        }
+      }
+      impl = LocalRT();
+      document.getElementById('offlineBadge').hidden = false;
+    }
+  };
+})();
+
+/* ==========================================================================
+   §4  STATE
+   ========================================================================== */
+const S = {
+  room:null, teamId:null, uid:null, name:null, isHost:false,
+  roundIdx:0, round:null, problem:null, algo:null, width:0,
+  board:{}, selected:null, focusSlot:0,
+  members:{}, cursors:{}, teamScores:{}, teamMembers:{}, meta:null, lastCursorSlot:-1,
+  attempts:0, locked:false, revealed:false,
+  subs:[], roundSubs:[], tickId:null, cursorThrottle:0, wiredTimeline:false
+};
+
+const $  = (id) => document.getElementById(id);
+const el = (tag, cls, txt) => { const n=document.createElement(tag); if(cls) n.className=cls; if(txt!=null) n.textContent=txt; return n; };
+const roomPath = (...p) => ['rooms', S.room, ...p].join('/');
+const teamPath = (...p) => roomPath('teams', S.teamId, ...p);
+/** Boards are namespaced per round so round N+1 starts empty and round N
+ *  stays on record for the teacher. */
+const boardPath = (...p) => teamPath('boards', String(S.roundIdx), ...p);
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('is-active', s.id==='screen-'+id));
+  window.scrollTo({top:0,behavior:'instant'});
+}
+function unsubscribeAll(){
+  S.subs.concat(S.roundSubs).forEach(fn=>{ try{fn();}catch(e){} });
+  S.subs=[]; S.roundSubs=[];
+}
+/** Round-scoped listeners are torn down on every round change; without this
+ *  each round would stack another full set of listeners on the same paths. */
+function unsubscribeRound(){ S.roundSubs.forEach(fn=>{ try{fn();}catch(e){} }); S.roundSubs=[]; }
+const sub      = (path, cb) => { S.subs.push(RT.ref(path).on(cb)); };
+const subRound = (path, cb) => { S.roundSubs.push(RT.ref(path).on(cb)); };
+
+/**
+ * Leaderboard/roster data only. Deliberately NOT a listener on the whole
+ * `teams` subtree: that tree carries every group's board, so a single block
+ * placement would push ~14KB to every connected client. With a class of 38
+ * that is megabytes per second. These narrow listeners send ~50 bytes when a
+ * score changes and nothing at all when a board does.
+ */
+function subscribeTeamSummaries(onChange){
+  TEAM_IDS.forEach(id => {
+    sub(roomPath('teams', id, 'scores'),  v => { S.teamScores[id]  = v || {}; onChange(); });
+    sub(roomPath('teams', id, 'members'), v => { S.teamMembers[id] = v || {}; onChange(); });
+  });
+}
+
+/* ==========================================================================
+   §5  FX  —  toasts, floating scores, confetti
+   ========================================================================== */
+function toast(msg, kind='info', ms=2600){
+  const t = el('div','toast toast--'+kind, msg);
+  $('toasts').appendChild(t);
+  setTimeout(()=>{ t.classList.add('is-leaving'); setTimeout(()=>t.remove(),200); }, ms);
+}
+function scorePop(text, x, y){
+  const n = el('div','score-pop', text);
+  n.style.left = x+'px'; n.style.top = y+'px';
+  document.body.appendChild(n);
+  setTimeout(()=>n.remove(), 1000);
+}
+const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const Confetti = (function(){
+  const cv=$('confetti'); const ctx=cv.getContext('2d');
+  let parts=[], raf=null;
+  function resize(){ cv.width=innerWidth; cv.height=innerHeight; }
+  addEventListener('resize', resize); resize();
+  function burst(n=140){
+    if(reduceMotion()) return;
+    const colors=['#800000','#FFD700','#06B6D4','#A855F7','#22C55E','#C2410C'];
+    for(let i=0;i<n;i++) parts.push({
+      x:innerWidth/2+(Math.random()-.5)*220, y:innerHeight*0.34,
+      vx:(Math.random()-.5)*11, vy:Math.random()*-13-4,
+      w:7+Math.random()*7, h:9+Math.random()*9,
+      rot:Math.random()*6.28, vr:(Math.random()-.5)*0.32,
+      c:colors[i%colors.length], life:0
+    });
+    if(!raf) raf=requestAnimationFrame(loop);
+  }
+  function loop(){
+    ctx.clearRect(0,0,cv.width,cv.height);
+    parts=parts.filter(p=>p.life<170&&p.y<cv.height+60);
+    parts.forEach(p=>{
+      p.life++; p.vy+=0.34; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr; p.vx*=0.995;
+      ctx.save(); ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+      ctx.globalAlpha = Math.max(0, 1-p.life/170);
+      ctx.fillStyle=p.c; ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h); ctx.restore();
+    });
+    if(parts.length) raf=requestAnimationFrame(loop);
+    else { raf=null; ctx.clearRect(0,0,cv.width,cv.height); }
+  }
+  return {burst};
+})();
+
+/* ==========================================================================
+   §6  HOME  —  create / join
+   ========================================================================== */
+const newRoomCode = () => 'CPU-' + String(Math.floor(Math.random()*90)+10);
+const newUid = () => 'u' + Math.random().toString(36).slice(2,10);
+
+(function initHome(){
+  const sel = $('inTeam');
+  TEAM_IDS.forEach(id => { const o=el('option',null,teamLabel(id)); o.value=id; sel.appendChild(o); });
+
+  $('btnCreateRoom').addEventListener('click', async () => {
+    const code = newRoomCode();
+    S.room = code; S.uid = newUid(); S.isHost = true; S.name = 'Teacher';
+    await RT.ref(roomPath('meta')).set({
+      createdAt: RT.stamp(), hostUid: S.uid, status:'lobby', currentRound:0
+    });
+    try{ sessionStorage.setItem('cpucoop:host', JSON.stringify({room:code, uid:S.uid})); }catch(e){}
+    enterLobby();
+  });
+
+  $('joinForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const errBox = $('joinErr'); errBox.textContent = '';
+    let code = $('inRoom').value.trim().toUpperCase();
+    if(/^\d{1,2}$/.test(code)) code = 'CPU-' + code.padStart(2,'0');
+    const teamId = $('inTeam').value;
+    const name = $('inName').value.trim();
+
+    if(!/^CPU-\d{2}$/.test(code)) return void(errBox.textContent = 'Room code looks like CPU-42.');
+    if(!name) return void(errBox.textContent = 'Please enter your name.');
+
+    const meta = await RT.ref(['rooms',code,'meta'].join('/')).once();
+    if(!meta) return void(errBox.textContent = 'No room with that code. Check with your teacher.');
+
+    S.room=code; S.teamId=teamId; S.name=name; S.uid=newUid(); S.isHost=false;
+
+    // Capacity is enforced atomically so a 9th student cannot slip in between
+    // a read and a write when a whole class joins at once.
+    const res = await RT.ref(['rooms',code,'teams',teamId,'members'].join('/')).transaction(cur => {
+      const m = cur || {};
+      if(Object.keys(m).length >= MAX_MEMBERS) return undefined;   // abort
+      m[S.uid] = { name, avatar: Object.keys(m).length % AVATAR_COLORS.length, joinedAt: Date.now() };
+      return m;
+    });
+    if(!res.committed){
+      errBox.textContent = teamLabel(teamId) + ' is full (' + MAX_MEMBERS + ' members). Pick another group.';
+      return;
+    }
+    await RT.ref(['rooms',code,'teams',teamId,'name'].join('/')).set(teamLabel(teamId));
+    RT.ref(teamPath('members', S.uid)).onDisconnectRemove();
+    RT.ref(teamPath('cursors', S.uid)).onDisconnectRemove();
+    enterLobby();
+  });
+})();
+
+/* ==========================================================================
+   §7  LOBBY
+   ========================================================================== */
+function enterLobby(){
+  showScreen('lobby');
+  $('lobbyCode').textContent = S.room;
+  $('lobbyHostBar').hidden = !S.isHost;
+  $('lobbyHint').textContent = S.isHost
+    ? 'Share this code. Press Start when everyone has joined.'
+    : 'Waiting for the teacher to start the tournament…';
+
+  unsubscribeAll();
+  subscribeTeamSummaries(renderLobbyTeams);
+  sub(roomPath('meta'), (meta) => {
+    S.meta = meta || {};
+    if(meta && meta.status === 'playing') { S.isHost ? enterTeacher() : enterGame(); }
+    if(meta && meta.status === 'ended')   { enterResults(); }
+  });
+}
+
+function renderLobbyTeams(){
+  const box = $('lobbyTeams'); box.innerHTML = '';
+  let total = 0;
+  TEAM_IDS.forEach(id => {
+    const names = Object.values(S.teamMembers[id] || {}).map(m => m.name);
+    total += names.length;
+    if(!names.length) return;
+    const row = el('div','lb-row');
+    row.appendChild(el('div','lb-rank', String(TEAM_IDS.indexOf(id)+1)));
+    const mid = el('div');
+    mid.appendChild(el('div','lb-name', teamLabel(id)));
+    mid.appendChild(el('div','lb-sub', names.join(', ')));
+    row.appendChild(mid);
+    row.appendChild(el('div','lb-score', names.length + '/' + MAX_MEMBERS));
+    if(id === S.teamId) row.classList.add('is-me');
+    box.appendChild(row);
+  });
+  if(!total) box.appendChild(el('p','muted-text','No one has joined yet.'));
+  $('lobbyCount').textContent = total + (total === 1 ? ' player' : ' players');
+}
+
+$('btnCopyCode').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(S.room); toast('Room code copied','good',1600); }
+  catch(e){ toast('Copy failed — read it aloud: ' + S.room,'info',3200); }
+});
+$('btnStartTournament').addEventListener('click', () => hostStartRound(0));
+
+/* ==========================================================================
+   §8  ROUND CONTROL  (host writes; everyone reads)
+   ========================================================================== */
+async function hostStartRound(idx){
+  const cfg = ROUNDS[idx];
+  // Seeded by room + round: identical for every team, and reproducible later.
+  const problem = generateProblem(cfg.algo, seedFor(S.room, idx));
+  await RT.ref(roomPath('rounds', String(idx))).set({
+    algo: cfg.algo, problem, durationSec: cfg.sec,
+    startAt: RT.stamp(), status: 'running'
+  });
+  await RT.ref(roomPath('meta')).update({ status:'playing', currentRound: idx });
+}
+
+function subscribeRound(){
+  // Room- and team-level listeners live for the whole session.
+  subscribeTeamSummaries(() => { renderLeaderboard(); if(S.isHost) renderMatrix(); });
+  if(!S.isHost){
+    sub(teamPath('members'), (m) => { S.members = m || {}; renderPresence(); renderPeers(); });
+    sub(teamPath('cursors'), (c) => { S.cursors = c || {}; renderPeers(); });
+  }
+  sub(roomPath('meta'), (meta) => {
+    S.meta = meta || {};
+    if(!meta) return;
+    if(meta.status === 'ended'){ enterResults(); return; }
+    const next = meta.currentRound || 0;
+    if(next !== S.roundIdx || !S.round) loadRound(next);
+  });
+}
+
+function loadRound(idx){
+  unsubscribeRound();
+  S.roundIdx = idx;
+  S.round=null; S.problem=null; S.attempts=0; S.locked=false;
+  S.revealed=false; S.selected=null; S.board={}; S.cursors={}; S.focusSlot=0;
+
+  subRound(roomPath('rounds', String(idx)), (r) => {
+    if(!r || !r.problem) return;
+    const first = !S.round;
+    S.round = r; S.problem = r.problem; S.algo = r.algo;
+    S.width = boardWidth(r.problem);
+    S.revealed = r.status === 'revealed';
+    renderRoundChrome();
+    if(first){ renderPalette(); renderTimeline(); startTicking(); }
+    if(S.revealed) paintAnswer();
+    if(S.isHost) renderHostAnswer();
+  });
+
+  if(!S.isHost){
+    subRound(boardPath(), (g) => { S.board = g || {}; renderBoard(); renderPalette(); });
+    subRound(teamPath('answers', String(idx)), (a) => {
+      S.attempts = (a && a.attempts) || 0;
+      if(a && a.solvedAt) S.locked = true;
+      renderAttempts();
+    });
+  }
+}
+
+/* ==========================================================================
+   §9  GAME RENDERING
+   ========================================================================== */
+function enterGame(){
+  showScreen('game');
+  $('teamNameChip').textContent = teamLabel(S.teamId);
+  unsubscribeAll();
+  subscribeRound();
+}
+
+function renderRoundChrome(){
+  const cfg = ROUNDS[S.roundIdx];
+  $('roundLabel').textContent = 'Round ' + (S.roundIdx+1) + ' of ' + ROUNDS.length;
+  $('algoLabel').textContent = cfg.label;
+  $('algoHint').textContent  = cfg.hint;
+  const q = $('quantumPill');
+  q.hidden = S.algo !== 'rr';
+  if(S.algo === 'rr') q.textContent = 'Quantum q = ' + S.problem.quantum;
+  renderProcessTable(); renderAttempts();
+}
+
+function renderProcessTable(){
+  const showPr = S.algo === 'priorityNP' || S.algo === 'priorityP';
+  const head = $('ptableHead'), body = $('ptableBody');
+  head.innerHTML=''; body.innerHTML='';
+  const hr = el('tr');
+  ['Process','Arrival','Burst'].concat(showPr?['Priority']:[]).forEach(h=>hr.appendChild(el('th',null,h)));
+  head.appendChild(hr);
+  S.problem.procs.forEach(p => {
+    const c = colorFor(p.pid), tr = el('tr');
+    const td = el('td');
+    const wrap = el('span','pid-cell');
+    const sw = el('i','swatch'); sw.style.background = c.bg;
+    wrap.appendChild(sw); wrap.appendChild(el('strong',null,p.pid));
+    td.appendChild(wrap); tr.appendChild(td);
+    tr.appendChild(el('td',null,String(p.at)));
+    tr.appendChild(el('td',null,String(p.bt)));
+    if(showPr) tr.appendChild(el('td',null,String(p.pr)));
+    body.appendChild(tr);
+  });
+}
+
+function placedCount(pid){
+  return Object.values(S.board).filter(v => v && v.pid === pid).length;
+}
+
+function renderPalette(){
+  if(!S.problem) return;
+  const box = $('palette'); box.innerHTML = '';
+  S.problem.procs.forEach(p => {
+    const c = colorFor(p.pid);
+    const used = placedCount(p.pid), left = p.bt - used;
+    const b = el('button','chip');
+    b.style.setProperty('--chip-bg', c.bg);
+    b.style.setProperty('--chip-fg', c.fg);
+    b.appendChild(el('span','chip-pid', p.pid));
+    b.appendChild(el('span','chip-rem', left > 0 ? left + ' left' : (left === 0 ? 'done' : Math.abs(left)+' over')));
+    if(left <= 0) b.classList.add('is-done');
+    if(S.selected === p.pid) b.classList.add('is-selected');
+    b.setAttribute('aria-pressed', String(S.selected === p.pid));
+    b.setAttribute('aria-label', p.pid + ', burst ' + p.bt + ', ' + Math.max(0,left) + ' units left to place');
+    b.addEventListener('click', () => { S.selected = (S.selected===p.pid ? null : p.pid); renderPalette(); });
+    // Drag is the pointer-device shortcut; tap-to-select above stays the
+    // primary path and is the only one available on touch.
+    b.draggable = true;
+    b.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', p.pid);
+      e.dataTransfer.effectAllowed = 'copy';
+      S.selected = p.pid; renderPalette();
+    });
+    box.appendChild(b);
+  });
+  const er = el('button','chip chip--eraser');
+  er.appendChild(el('span','chip-pid','Erase'));
+  er.appendChild(el('span','chip-rem','clear a slot'));
+  if(S.selected === 'ERASE') er.classList.add('is-selected');
+  er.setAttribute('aria-pressed', String(S.selected === 'ERASE'));
+  er.addEventListener('click', () => { S.selected = (S.selected==='ERASE' ? null : 'ERASE'); renderPalette(); });
+  box.appendChild(er);
+}
+
+function renderTimeline(){
+  const ruler = $('ruler'), track = $('track');
+  ruler.innerHTML=''; track.innerHTML='';
+  for(let i=0;i<S.width;i++) ruler.appendChild(el('div','tick', String(i)));
+  ruler.appendChild(el('div','tick', String(S.width)));
+
+  for(let i=0;i<S.width;i++){
+    const b = el('button','slot');
+    b.dataset.slot = String(i);
+    b.type = 'button';
+    b.tabIndex = i === 0 ? 0 : -1;   // roving tabindex
+    b.addEventListener('click', () => onSlot(i));
+    b.addEventListener('focus', () => { S.focusSlot = i; broadcastCursor(i); });
+    b.addEventListener('pointerenter', () => broadcastCursor(i));
+    b.addEventListener('dragover', (e)=>{ e.preventDefault(); b.classList.add('is-drop-target'); });
+    b.addEventListener('dragleave', ()=> b.classList.remove('is-drop-target'));
+    b.addEventListener('drop', (e)=>{ e.preventDefault(); b.classList.remove('is-drop-target');
+      const pid=e.dataTransfer.getData('text/plain'); if(pid){ S.selected=pid; onSlot(i); } });
+    track.appendChild(b);
+  }
+  // Attach once — renderTimeline runs again on every round.
+  if(!S.wiredTimeline){
+    $('timelineWrap').addEventListener('keydown', onTimelineKey);
+    S.wiredTimeline = true;
+  }
+  renderBoard();
+}
+
+function onTimelineKey(e){
+  const keys = {ArrowRight:1, ArrowLeft:-1, Home:'h', End:'e'};
+  if(!(e.key in keys)) return;
+  e.preventDefault();
+  let next = S.focusSlot;
+  if(e.key === 'Home') next = 0;
+  else if(e.key === 'End') next = S.width - 1;
+  else next = Math.min(S.width-1, Math.max(0, S.focusSlot + keys[e.key]));
+  const slots = $('track').children;
+  if(slots[S.focusSlot]) slots[S.focusSlot].tabIndex = -1;
+  S.focusSlot = next;
+  slots[next].tabIndex = 0; slots[next].focus();
+}
+
+function renderBoard(){
+  const track = $('track'); if(!track.children.length) return;
+  for(let i=0;i<S.width;i++){
+    const cell = track.children[i]; if(!cell) continue;
+    const v = S.board[i];
+    if(v && v.pid){
+      const c = colorFor(v.pid);
+      cell.classList.add('is-filled');
+      cell.style.setProperty('--slot-bg', c.bg);
+      cell.style.setProperty('--slot-fg', c.fg);
+      cell.textContent = v.pid;
+      cell.setAttribute('aria-label','Time '+i+' to '+(i+1)+': '+v.pid);
+    } else {
+      cell.classList.remove('is-filled');
+      cell.style.removeProperty('--slot-bg'); cell.style.removeProperty('--slot-fg');
+      cell.textContent = '';
+      cell.setAttribute('aria-label','Time '+i+' to '+(i+1)+': empty');
+    }
+  }
+  renderPeers();
+}
+
+function renderPeers(){
+  const track = $('track');
+  Array.from(track.children).forEach(c=>{
+    c.classList.remove('is-peered');
+    const tag = c.querySelector('.peer-tag'); if(tag) tag.remove();
+  });
+  Object.entries(S.cursors || {}).forEach(([uid, cur])=>{
+    if(uid === S.uid || !cur) return;
+    const m = S.members[uid]; if(!m) return;
+    const cell = track.children[cur.slot]; if(!cell) return;
+    const color = AVATAR_COLORS[(m.avatar||0) % AVATAR_COLORS.length];
+    cell.classList.add('is-peered');
+    cell.style.setProperty('--peer-color', color);
+    const tag = el('span','peer-tag', (m.name||'?').charAt(0).toUpperCase());
+    cell.appendChild(tag);
+  });
+}
+
+function renderPresence(){
+  const dock = $('presenceDock'); dock.innerHTML='';
+  const entries = Object.entries(S.members || {});
+  if(!entries.length){ dock.appendChild(el('p','muted-text','No teammates connected.')); return; }
+  entries.forEach(([uid,m])=>{
+    const a = el('div','avatar', (m.name||'?').charAt(0).toUpperCase());
+    a.style.background = AVATAR_COLORS[(m.avatar||0) % AVATAR_COLORS.length];
+    a.title = m.name; a.setAttribute('aria-label', m.name + (uid===S.uid?' (you)':''));
+    if(uid === S.uid) a.dataset.self = '1';
+    a.appendChild(el('span','dot'));
+    dock.appendChild(a);
+  });
+}
+
+/* ---- placing a block ---- */
+let cursorTimer = null;
+function broadcastCursor(slot){
+  if(S.isHost || !S.teamId) return;
+  // Dragging a mouse across the grid fires pointerenter constantly; without
+  // this guard a single sweep is dozens of writes that say the same thing.
+  if(slot === S.lastCursorSlot) return;
+  const now = Date.now();
+  if(now - S.cursorThrottle < 200){
+    clearTimeout(cursorTimer);
+    cursorTimer = setTimeout(()=>broadcastCursor(slot), 210);
+    return;
+  }
+  S.lastCursorSlot = slot;
+  S.cursorThrottle = now;
+  RT.ref(teamPath('cursors', S.uid)).set({ slot, at: now });
+}
+
+async function onSlot(i){
+  if(S.locked){ toast('This round is closed.','info',1800); return; }
+  if(!S.selected){ toast('Pick a process from the palette first.','info',2000); return; }
+
+  const cell = $('track').children[i];
+  const erasing = S.selected === 'ERASE';
+  const desired = erasing ? null : { pid:S.selected, by:S.uid, at:Date.now() };
+  const previous = S.board[i] || null;
+
+  // Optimistic paint so the board feels instant on a classroom connection.
+  S.board[i] = desired; renderBoard(); renderPalette();
+  if(!erasing && !reduceMotion()){
+    cell.classList.remove('just-placed'); void cell.offsetWidth; cell.classList.add('just-placed');
+  }
+
+  const res = await RT.ref(boardPath(String(i))).transaction(cur => {
+    // Last write wins, but an erase must not clobber a teammate's fresh block.
+    if(erasing && cur && cur.by !== S.uid && cur.at && Date.now() - cur.at < 600) return undefined;
+    return desired;
+  });
+
+  if(!res.committed){
+    S.board[i] = previous; renderBoard(); renderPalette();
+    cell.classList.remove('is-rejected'); void cell.offsetWidth; cell.classList.add('is-rejected');
+    const who = (S.members[cur_by(previous)] || {}).name || 'A teammate';
+    toast(who + ' just placed there.','bad',2200);
+  }
+}
+const cur_by = (v) => (v && v.by) || '';
+
+$('btnClearBoard').addEventListener('click', async () => {
+  if(S.locked) return;
+  await RT.ref(boardPath()).remove();
+  S.board = {}; renderBoard(); renderPalette();
+  toast('Board cleared for the whole team.','info',2000);
+});
+
+/* ==========================================================================
+   §10  TIMER
+   ========================================================================== */
+const CIRC = 2 * Math.PI * 42;
+function secondsLeft(){
+  if(!S.round || !S.round.startAt) return 0;
+  const end = S.round.startAt + S.round.durationSec*1000;
+  return Math.max(0, (end - RT.serverNow()) / 1000);
+}
+function paintTimer(ringId, textId, wrapId){
+  const left = secondsLeft(), total = S.round ? S.round.durationSec : 1;
+  const ring = $(ringId), txt = $(textId), wrap = $(wrapId);
+  if(!ring) return;
+  ring.style.strokeDasharray = CIRC;
+  ring.style.strokeDashoffset = CIRC * (1 - left/total);
+  txt.textContent = Math.ceil(left);
+  wrap.classList.toggle('is-urgent', left <= 10 && left > 0);
+}
+function startTicking(){
+  clearInterval(S.tickId);
+  S.tickId = setInterval(() => {
+    if(!S.round) return;
+    paintTimer('timerProg','timerText','timer');
+    if(S.isHost) paintTimer('tTimerProg','tTimerText','tTimer');
+    if(secondsLeft() <= 0 && !S.locked){
+      S.locked = true;
+      $('btnSubmit').disabled = true;
+      toast("Time's up for this round.","bad",3200);
+    }
+  }, 250);
+}
+
+function renderAttempts(){
+  const box = $('attemptPips'); box.innerHTML='';
+  const left = Math.max(0, 3 - S.attempts);
+  for(let i=0;i<3;i++){
+    const p = el('span','attempt-pip'); if(i >= left) p.classList.add('is-used'); box.appendChild(p);
+  }
+  box.setAttribute('aria-label', left + ' of 3 attempts remaining');
+  $('btnSubmit').disabled = S.locked || left === 0;
+}
+
+/* ==========================================================================
+   §11  SUBMISSION & SCORING
+   ========================================================================== */
+$('btnSubmit').addEventListener('click', async (ev) => {
+  const err = $('submitErr'); err.textContent='';
+  if(S.locked) return;
+
+  const tat = parseFloat($('inTAT').value), wt = parseFloat($('inWT').value);
+  if(!Number.isFinite(tat) || !Number.isFinite(wt)){
+    err.textContent = 'Enter both averages before submitting.'; return;
+  }
+
+  const board = [];
+  for(let i=0;i<S.width;i++) board[i] = S.board[i] ? S.board[i].pid : null;
+  const r = gradeSubmission(S.algo, S.problem, board, tat, wt);
+  const left = secondsLeft();
+
+  if(r.ganttOK && r.metricsOK){
+    const pts = scoreRound({ganttOK:true, metricsOK:true, secondsLeft:left, wrongAttempts:S.attempts});
+    S.locked = true;
+    await RT.ref(teamPath('scores', String(S.roundIdx))).set(pts);
+    await RT.ref(teamPath('answers', String(S.roundIdx))).set({
+      avgTAT:tat, avgWT:wt, attempts:S.attempts, score:pts, solvedAt:Date.now()
+    });
+    const rect = ev.currentTarget.getBoundingClientRect();
+    scorePop('+' + pts + ' pts!', rect.left + rect.width/2, rect.top);
+    Confetti.burst();
+    toast('Correct! +' + pts + ' points (' + Math.floor(left) + 's speed bonus)','good',4200);
+    renderAttempts();
+  } else {
+    S.attempts++;
+    const wrongPart = !r.ganttOK && !r.metricsOK ? 'Gantt chart and averages are'
+                    : !r.ganttOK ? 'Gantt chart is' : 'averages are';
+    await RT.ref(teamPath('answers', String(S.roundIdx))).update({ attempts:S.attempts });
+    if(S.attempts >= 3){
+      const pts = scoreRound({ganttOK:false, metricsOK:false, secondsLeft:0, wrongAttempts:S.attempts});
+      S.locked = true;
+      await RT.ref(teamPath('scores', String(S.roundIdx))).set(pts);
+      toast('Out of attempts. ' + pts + ' points this round.','bad',4200);
+    } else {
+      toast('Not quite — the ' + wrongPart + ' wrong. −20 pts. ' + (3-S.attempts) + ' left.','bad',4200);
+    }
+    renderAttempts();
+  }
+});
+
+/* ==========================================================================
+   §12  LEADERBOARD
+   ========================================================================== */
+function teamTotals(){
+  return TEAM_IDS.map(id => {
+    const members = S.teamMembers[id] || {};
+    const scores  = S.teamScores[id]  || {};
+    const names   = Object.values(members).map(m => m.name);
+    const rounds  = ROUNDS.map((_,i) => Number(scores[i] || 0));
+    const total   = rounds.reduce((a,b)=>a+b,0);
+    if(!names.length && !total) return null;
+    return { id, name:teamLabel(id), members:names.length, memberNames:names, rounds, total };
+  }).filter(Boolean).sort((a,b) => b.total - a.total || a.id.localeCompare(b.id));
+}
+
+function renderLeaderboard(){
+  const box = $('leaderboard'); if(!box) return;
+  box.innerHTML = '';
+  const rows = teamTotals().filter(t => t.members > 0 || t.total > 0);
+  if(!rows.length){ box.appendChild(el('p','muted-text','Scores appear as teams submit.')); return; }
+  rows.forEach((t,i) => {
+    const row = el('div','lb-row' + (t.id === S.teamId ? ' is-me' : ''));
+    row.appendChild(el('div','lb-rank', String(i+1)));
+    const mid = el('div');
+    mid.appendChild(el('div','lb-name', t.name));
+    mid.appendChild(el('div','lb-sub', t.members + ' online'));
+    row.appendChild(mid);
+    row.appendChild(el('div','lb-score', t.total + ' pts'));
+    box.appendChild(row);
+  });
+  const me = rows.find(t => t.id === S.teamId);
+  if(me) $('myScoreChip').textContent = me.total + ' pts';
+}
+
+/* ==========================================================================
+   §13  TEACHER CONSOLE
+   ========================================================================== */
+function enterTeacher(){
+  showScreen('teacher');
+  $('tCode').textContent = S.room;
+  unsubscribeAll();
+  subscribeRound();
+  startTicking();
+}
+
+function renderHostAnswer(){
+  const cfg = ROUNDS[S.roundIdx];
+  $('tRoundTitle').textContent = 'Round ' + (S.roundIdx+1) + ' — ' + cfg.short;
+  $('tStatus').textContent = S.round ? (secondsLeft() > 0 ? 'Running' : 'Time up') : 'Waiting';
+  $('btnHostNext').disabled = S.roundIdx >= ROUNDS.length - 1;
+
+  const box = $('tAnswer');
+  box.hidden = !S.revealed;
+  if(!S.revealed || !S.problem) return;
+
+  const sol = solve(S.algo, S.problem);
+  const ruler = $('tRuler'), track = $('tTrack');
+  ruler.innerHTML=''; track.innerHTML='';
+  for(let i=0;i<=sol.slots.length;i++) ruler.appendChild(el('div','tick', String(i)));
+  sol.slots.forEach(pid => {
+    const c = el('div','slot');
+    if(pid){ const col = colorFor(pid);
+      c.classList.add('is-filled'); c.style.setProperty('--slot-bg',col.bg);
+      c.style.setProperty('--slot-fg',col.fg); c.textContent = pid; }
+    track.appendChild(c);
+  });
+  $('tTAT').textContent = sol.avgTAT.toFixed(2);
+  $('tWT').textContent  = sol.avgWT.toFixed(2);
+}
+
+function paintAnswer(){
+  if(!S.problem || S.isHost) return;
+  const sol = solve(S.algo, S.problem);
+  const track = $('track');
+  for(let i=0;i<S.width;i++){
+    const cell = track.children[i]; if(!cell) continue;
+    const want = sol.slots[i] || null;
+    const got  = S.board[i] ? S.board[i].pid : null;
+    cell.classList.toggle('is-answer', want !== null && want === got);
+    cell.classList.toggle('is-wrong',  want !== got);
+  }
+  toast('Answer revealed: avg TAT ' + sol.avgTAT.toFixed(2) + ', avg WT ' + sol.avgWT.toFixed(2),'info',6000);
+}
+
+function renderMatrix(){
+  const head = $('mxHead'), body = $('mxBody');
+  head.innerHTML=''; body.innerHTML='';
+  const hr = el('tr');
+  ['Group','Members'].concat(ROUNDS.map((r,i)=>'R'+(i+1))).concat(['Total']).forEach(h=>hr.appendChild(el('th',null,h)));
+  head.appendChild(hr);
+  const rows = teamTotals();
+  if(!rows.length){ body.appendChild(el('tr')).appendChild(el('td','muted-text','No groups yet.')).colSpan = 9; return; }
+  rows.forEach(t => {
+    const tr = el('tr');
+    tr.appendChild(el('td','name', t.name));
+    tr.appendChild(el('td', null, String(t.members)));
+    t.rounds.forEach(v => {
+      const td = el('td', v > 0 ? 'cell-solved' : 'cell-empty', v > 0 ? String(v) : '–');
+      tr.appendChild(td);
+    });
+    const tot = el('td'); tot.appendChild(el('strong',null,String(t.total))); tr.appendChild(tot);
+    body.appendChild(tr);
+  });
+}
+
+$('btnHostStart').addEventListener('click', () => hostStartRound(S.roundIdx));
+$('btnHostReveal').addEventListener('click', () =>
+  RT.ref(roomPath('rounds', String(S.roundIdx), 'status')).set('revealed'));
+$('btnHostNext').addEventListener('click', () => {
+  const next = S.roundIdx + 1;
+  if(next >= ROUNDS.length){ toast('That was the last round — end the tournament.','info',3200); return; }
+  hostStartRound(next);
+});
+$('btnHostEnd').addEventListener('click', async () => {
+  await RT.ref(roomPath('meta')).update({ status:'ended' });
+});
+
+/* ==========================================================================
+   §14  RESULTS
+   ========================================================================== */
+function enterResults(){
+  showScreen('results');
+  clearInterval(S.tickId);
+  unsubscribeAll();
+  subscribeTeamSummaries(renderResults);
+  if(!reduceMotion()) setTimeout(()=>Confetti.burst(180), 350);
+}
+
+function renderResults(){
+  const rows = teamTotals();
+  const podium = $('podium'); podium.innerHTML = '';
+  const order = [rows[1], rows[0], rows[2]];   // silver, gold, bronze
+  order.forEach((t,i) => {
+    const col = el('div','podium-col');
+    if(t){
+      col.appendChild(el('div','lb-name', t.name));
+      col.appendChild(el('div','lb-sub', t.total + ' pts'));
+    } else col.appendChild(el('div','lb-sub','—'));
+    const bar = el('div','podium-bar', String(i === 1 ? 1 : (i === 0 ? 2 : 3)));
+    col.appendChild(bar);
+    podium.appendChild(col);
+  });
+
+  const head = $('bdHead'), body = $('bdBody');
+  head.innerHTML=''; body.innerHTML='';
+  const hr = el('tr'); ['Round','Algorithm','Score'].forEach(h=>hr.appendChild(el('th',null,h)));
+  head.appendChild(hr);
+  const mine = rows.find(t => t.id === S.teamId) || rows[0];
+  if(mine) ROUNDS.forEach((cfg,i) => {
+    const tr = el('tr');
+    tr.appendChild(el('td',null,'Round ' + (i+1)));
+    tr.appendChild(el('td',null,cfg.short));
+    tr.appendChild(el('td',null,String(mine.rounds[i])));
+    body.appendChild(tr);
+  });
+}
+
+$('btnBackHome').addEventListener('click', () => { unsubscribeAll(); clearInterval(S.tickId); location.reload(); });
+
+/* ==========================================================================
+   §15  CSV EXPORT
+   ========================================================================== */
+function csvCell(v){
+  const s = String(v == null ? '' : v);
+  return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g,'""') + '"' : s;
+}
+function exportCSV(){
+  const rows = teamTotals();
+  if(!rows.length){ toast('No scores to export yet.','info',2600); return; }
+  const header = ['Rank','Group_ID','Group_Name','Active_Members']
+    .concat(ROUNDS.map((_,i)=>'Round_'+(i+1)+'_Score'))
+    .concat(['Total_Score']);
+  const lines = [header.join(',')];
+  rows.forEach((t,i) => {
+    lines.push([i+1, t.id, t.name, t.members].concat(t.rounds).concat([t.total]).map(csvCell).join(','));
+  });
+  const d = new Date(), p = (n)=>String(n).padStart(2,'0');
+  const stamp = d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+'_'+p(d.getHours())+'-'+p(d.getMinutes());
+  // BOM keeps Excel from mangling non-ASCII student names.
+  const blob = new Blob(['﻿' + lines.join('\r\n')], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = el('a'); a.href = url;
+  a.download = 'CPU_Scheduling_CoOp_Results_' + stamp + '.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  toast('Exported ' + rows.length + ' groups to CSV.','good',2800);
+}
+$('btnExportCSV').addEventListener('click', exportCSV);
+$('btnExportResults').addEventListener('click', exportCSV);
+
+/* ==========================================================================
+   §16  SELF TEST  (?selftest=1)  —  runs the solver assertions in-browser
+   ========================================================================== */
+function selfTest(){
+  const out = [];
+  let pass = 0, fail = 0;
+  const ok = (n,c) => { c ? (pass++, out.push('PASS  '+n)) : (fail++, out.push('FAIL  '+n)); };
+  const g = s => s.segments.map(x=>x.pid+'('+x.start+'-'+x.end+')').join(' ');
+  const P = (pid,at,bt,pr)=>({pid,at,bt,pr});
+
+  ok('FCFS textbook', g(solve('fcfs',{procs:[P('P1',0,24,1),P('P2',0,3,2),P('P3',0,3,3)],quantum:null}))
+     === 'P1(0-24) P2(24-27) P3(27-30)');
+  ok('SJF textbook', solve('sjf',{procs:[P('P1',0,6,1),P('P2',0,8,2),P('P3',0,7,3),P('P4',0,3,4)],quantum:null}).avgWT === 7);
+  ok('SRTF textbook', solve('srtf',{procs:[P('P1',0,8,1),P('P2',1,4,2),P('P3',2,9,3),P('P4',3,5,4)],quantum:null}).avgWT === 6.5);
+  ok('Priority NP textbook', solve('priorityNP',{procs:[P('P1',0,10,3),P('P2',0,1,1),P('P3',0,2,4),P('P4',0,1,5),P('P5',0,5,2)],quantum:null}).avgWT === 8.2);
+  ok('RR q=4 textbook', g(solve('rr',{procs:[P('P1',0,24,1),P('P2',0,3,2),P('P3',0,3,3)],quantum:4}))
+     === 'P1(0-4) P2(4-7) P3(7-10) P1(10-30)');
+  ['fcfs','priorityNP','sjf','priorityP','srtf','rr'].forEach(algo=>{
+    let bad = 0;
+    for(let s=1;s<=400;s++) if(hasAmbiguity(algo, generateProblem(algo,s))) bad++;
+    ok(algo+' 400 seeds unambiguous', bad === 0);
+  });
+  const a = JSON.stringify(generateProblem('sjf', seedFor('CPU-42',2)));
+  ok('determinism', JSON.stringify(generateProblem('sjf', seedFor('cpu-42',2))) === a);
+  ok('scoring 245', scoreRound({ganttOK:true,metricsOK:true,secondsLeft:45,wrongAttempts:0}) === 245);
+  ok('scoring floors at 0', scoreRound({ganttOK:false,metricsOK:false,secondsLeft:0,wrongAttempts:3}) === 0);
+
+  document.body.innerHTML = '<pre style="padding:24px;font:14px/1.7 ui-monospace,monospace">'
+    + out.join('\n') + '\n\n' + pass + ' passed, ' + fail + ' failed</pre>';
+  console.log(out.join('\n'));
+}
+
+/* ==========================================================================
+   §17  BOOT
+   ========================================================================== */
+(async function boot(){
+  if(new URLSearchParams(location.search).get('selftest')){ selfTest(); return; }
+  await RT.init();
+  $('inRoom').focus();
+})();
+</script>
+</body>
+</html>

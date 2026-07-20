@@ -1,0 +1,38 @@
+name: Deploy to GitHub Pages
+
+# Replaces the legacy `pages-build-deployment` builder, which gave no logs and
+# sat unschedulable during the 2026-07-20 Actions incident. This path is
+# user-controlled: it reports a real job status and can be re-run on demand.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/configure-pages@v5
+
+      # The app is a single self-contained index.html at the repo root, so the
+      # whole tree ships as-is. No build step.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+
+      - id: deployment
+        uses: actions/deploy-pages@v4
