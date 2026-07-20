@@ -977,7 +977,7 @@ const S = {
   room:null, teamId:null, uid:null, name:null, isHost:false,
   roundIdx:0, round:null, problem:null, algo:null, width:0,
   board:{}, selected:null, focusSlot:0,
-  members:{}, cursors:{}, teams:{}, meta:null,
+  members:{}, cursors:{}, teamScores:{}, teamMembers:{}, meta:null, lastCursorSlot:-1,
   attempts:0, locked:false, revealed:false,
   subs:[], roundSubs:[], tickId:null, cursorThrottle:0, wiredTimeline:false
 };
@@ -1003,6 +1003,20 @@ function unsubscribeAll(){
 function unsubscribeRound(){ S.roundSubs.forEach(fn=>{ try{fn();}catch(e){} }); S.roundSubs=[]; }
 const sub      = (path, cb) => { S.subs.push(RT.ref(path).on(cb)); };
 const subRound = (path, cb) => { S.roundSubs.push(RT.ref(path).on(cb)); };
+
+/**
+ * Leaderboard/roster data only. Deliberately NOT a listener on the whole
+ * `teams` subtree: that tree carries every group's board, so a single block
+ * placement would push ~14KB to every connected client. With a class of 38
+ * that is megabytes per second. These narrow listeners send ~50 bytes when a
+ * score changes and nothing at all when a board does.
+ */
+function subscribeTeamSummaries(onChange){
+  TEAM_IDS.forEach(id => {
+    sub(roomPath('teams', id, 'scores'),  v => { S.teamScores[id]  = v || {}; onChange(); });
+    sub(roomPath('teams', id, 'members'), v => { S.teamMembers[id] = v || {}; onChange(); });
+  });
+}
 
 /* ==========================================================================
    §5  FX  —  toasts, floating scores, confetti
@@ -1119,7 +1133,7 @@ function enterLobby(){
     : 'Waiting for the teacher to start the tournament…';
 
   unsubscribeAll();
-  sub(roomPath('teams'), (teams) => { S.teams = teams || {}; renderLobbyTeams(); });
+  subscribeTeamSummaries(renderLobbyTeams);
   sub(roomPath('meta'), (meta) => {
     S.meta = meta || {};
     if(meta && meta.status === 'playing') { S.isHost ? enterTeacher() : enterGame(); }
@@ -1131,16 +1145,16 @@ function renderLobbyTeams(){
   const box = $('lobbyTeams'); box.innerHTML = '';
   let total = 0;
   TEAM_IDS.forEach(id => {
-    const t = S.teams[id]; const members = t && t.members ? Object.values(t.members) : [];
-    total += members.length;
-    if(!members.length) return;
+    const names = Object.values(S.teamMembers[id] || {}).map(m => m.name);
+    total += names.length;
+    if(!names.length) return;
     const row = el('div','lb-row');
     row.appendChild(el('div','lb-rank', String(TEAM_IDS.indexOf(id)+1)));
     const mid = el('div');
     mid.appendChild(el('div','lb-name', teamLabel(id)));
-    mid.appendChild(el('div','lb-sub', members.map(m=>m.name).join(', ')));
+    mid.appendChild(el('div','lb-sub', names.join(', ')));
     row.appendChild(mid);
-    row.appendChild(el('div','lb-score', members.length + '/' + MAX_MEMBERS));
+    row.appendChild(el('div','lb-score', names.length + '/' + MAX_MEMBERS));
     if(id === S.teamId) row.classList.add('is-me');
     box.appendChild(row);
   });
@@ -1170,7 +1184,7 @@ async function hostStartRound(idx){
 
 function subscribeRound(){
   // Room- and team-level listeners live for the whole session.
-  sub(roomPath('teams'), (t) => { S.teams = t || {}; renderLeaderboard(); if(S.isHost) renderMatrix(); });
+  subscribeTeamSummaries(() => { renderLeaderboard(); if(S.isHost) renderMatrix(); });
   if(!S.isHost){
     sub(teamPath('members'), (m) => { S.members = m || {}; renderPresence(); renderPeers(); });
     sub(teamPath('cursors'), (c) => { S.cursors = c || {}; renderPeers(); });
@@ -1393,12 +1407,16 @@ function renderPresence(){
 let cursorTimer = null;
 function broadcastCursor(slot){
   if(S.isHost || !S.teamId) return;
+  // Dragging a mouse across the grid fires pointerenter constantly; without
+  // this guard a single sweep is dozens of writes that say the same thing.
+  if(slot === S.lastCursorSlot) return;
   const now = Date.now();
-  if(now - S.cursorThrottle < 120){
+  if(now - S.cursorThrottle < 200){
     clearTimeout(cursorTimer);
-    cursorTimer = setTimeout(()=>broadcastCursor(slot), 130);
+    cursorTimer = setTimeout(()=>broadcastCursor(slot), 210);
     return;
   }
+  S.lastCursorSlot = slot;
   S.cursorThrottle = now;
   RT.ref(teamPath('cursors', S.uid)).set({ slot, at: now });
 }
@@ -1533,12 +1551,13 @@ $('btnSubmit').addEventListener('click', async (ev) => {
    ========================================================================== */
 function teamTotals(){
   return TEAM_IDS.map(id => {
-    const t = S.teams[id]; if(!t) return null;
-    const members = t.members ? Object.values(t.members) : [];
-    const scores  = t.scores || {};
+    const members = S.teamMembers[id] || {};
+    const scores  = S.teamScores[id]  || {};
+    const names   = Object.values(members).map(m => m.name);
     const rounds  = ROUNDS.map((_,i) => Number(scores[i] || 0));
-    return { id, name:t.name || teamLabel(id), members:members.length,
-             rounds, total: rounds.reduce((a,b)=>a+b,0) };
+    const total   = rounds.reduce((a,b)=>a+b,0);
+    if(!names.length && !total) return null;
+    return { id, name:teamLabel(id), members:names.length, memberNames:names, rounds, total };
   }).filter(Boolean).sort((a,b) => b.total - a.total || a.id.localeCompare(b.id));
 }
 
@@ -1651,7 +1670,7 @@ function enterResults(){
   showScreen('results');
   clearInterval(S.tickId);
   unsubscribeAll();
-  sub(roomPath('teams'), (t) => { S.teams = t || {}; renderResults(); });
+  subscribeTeamSummaries(renderResults);
   if(!reduceMotion()) setTimeout(()=>Confetti.burst(180), 350);
 }
 

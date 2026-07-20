@@ -213,6 +213,28 @@ rather than silently testing nothing.
 
 ---
 
+## Class size
+
+Capacity is **8 groups × 8 members = 64 students**. A class of 38 fits comfortably at
+about 5 per group.
+
+The binding constraint is Firebase's free (Spark) tier limit of **100 simultaneous
+connections**. 38 students plus a teacher is 39 — well clear. Watch out if students open
+the app in several tabs, or if two sections run at once; each tab is a connection.
+
+Bandwidth was the real risk and is handled. The leaderboard originally listened to the
+whole `teams` subtree, so one student placing one block pushed ~14KB to every connected
+client — roughly 4 MB/s for a class of 38, which would exhaust the 10GB monthly quota in
+under an hour. Clients now subscribe only to each group's `scores` and `members`, so
+board activity generates no class-wide traffic at all; a block placement is seen only by
+that student's own group. Measured: 10 placements produced zero leaderboard updates,
+while a score write produced exactly one.
+
+To go beyond 64 students, raise `TEAM_IDS` and `MAX_MEMBERS` near the top of the script —
+but past ~90 concurrent connections you need the paid Blaze plan.
+
+---
+
 ## Known limitations
 
 - Scores are computed and written client-side. Fine for a supervised classroom; not
