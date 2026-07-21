@@ -617,6 +617,15 @@ button{cursor:pointer;background:none;border:none}
 
       <div class="card">
         <div class="row" style="margin-bottom:14px">
+          <h3 style="color:var(--maroon)">This Round's Problem</h3>
+          <span class="spacer"></span>
+          <span class="pill" id="tQuantumPill" hidden>Quantum q = 2</span>
+        </div>
+        <table class="ptable"><thead id="tPtableHead"></thead><tbody id="tPtableBody"></tbody></table>
+      </div>
+
+      <div class="card">
+        <div class="row" style="margin-bottom:14px">
           <h3 style="color:var(--maroon)">Class Progress</h3>
           <span class="spacer"></span>
           <button class="btn btn--gold btn--sm" id="btnExportCSV">Export All Scores to CSV</button>
@@ -1247,9 +1256,9 @@ function renderRoundChrome(){
   renderProcessTable(); renderAttempts();
 }
 
-function renderProcessTable(){
+function renderProcessTable(headId='ptableHead', bodyId='ptableBody'){
   const showPr = S.algo === 'priorityNP' || S.algo === 'priorityP';
-  const head = $('ptableHead'), body = $('ptableBody');
+  const head = $(headId), body = $(bodyId);
   head.innerHTML=''; body.innerHTML='';
   const hr = el('tr');
   ['Process','Arrival','Burst'].concat(showPr?['Priority']:[]).forEach(h=>hr.appendChild(el('th',null,h)));
@@ -1596,6 +1605,14 @@ function renderHostAnswer(){
   $('tRoundTitle').textContent = 'Round ' + (S.roundIdx+1) + ' — ' + cfg.short;
   $('tStatus').textContent = S.round ? (secondsLeft() > 0 ? 'Running' : 'Time up') : 'Waiting';
   $('btnHostNext').disabled = S.roundIdx >= ROUNDS.length - 1;
+
+  // Show the problem the class is solving, the moment the round starts.
+  if(S.problem){
+    renderProcessTable('tPtableHead','tPtableBody');
+    const q = $('tQuantumPill');
+    q.hidden = S.algo !== 'rr';
+    if(S.algo === 'rr') q.textContent = 'Quantum q = ' + S.problem.quantum;
+  }
 
   const box = $('tAnswer');
   box.hidden = !S.revealed;
